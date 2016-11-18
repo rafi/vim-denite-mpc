@@ -26,6 +26,7 @@ class Source(Base):
             'port': 6600,
             'min_cache_files': 5000,
             'timeout': 5.0,
+            'default_view': 'date',
             'tags': [
                 'date', 'genre', 'title', 'album',
                 'track', 'artist', 'albumartist'
@@ -48,8 +49,11 @@ class Source(Base):
 
     def on_init(self, context):
         self.__sock = None
-        self.__entity = context['__entity'] = \
-                context['args'].pop(0) if len(context['args']) > 0 else 'date'
+        if len(context['args']) > 0:
+            self.__entity = context['args'].pop(0)
+        else:
+            self.__entity = self.vars['default_view']
+
         self.__hash = '{} {}'.format(
             self.__entity, ' '.join(context['args'])).__hash__()
 
