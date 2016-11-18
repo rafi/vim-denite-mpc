@@ -1,0 +1,103 @@
+*denite-mpc.txt*	denite source: mpc
+
+
+                                denite-mpc
+
+
+Author:            Rafael Bodill <justRafi at gmail.com>
+Version:           0.1.0
+License:           MIT License
+Plugin Homepage:   <https://github.com/rafi/vim-denite-mpc>
+
+==============================================================================
+CONTENTS						*denite-mpc-contents*
+
+Introduction		|denite-mpc-introduction|
+Usage			|denite-mpc-usage|
+Install			|denite-mpc-install|
+Configuration Examples	|denite-mpc-examples|
+Customize		|denite-mpc-customize|
+Sources			|denite-mpc-sources|
+
+==============================================================================
+INTRODUCTION					*denite-mpc-introduction*
+
+|denite-mpc| is a source for |denite| for browsing and playing your MPD
+music library and manage playlists.
+
+It receives data using fast socket reading and asynchronous denite gathering.
+
+==============================================================================
+USAGE							*denite-mpc-usage*
+
+	To browse your music library, you'll need at least one argument.
+>
+	:Denite mpc:<tag>[:filterby:query:...]
+<
+
+	Here are a few examples:
+
+	- To browse library by dates:
+>
+	:Denite mpc:date
+<
+	- To browse albums, but just for year 2016:
+>
+	:Denite mpc:album:date:2016
+<
+	- To list all Rock (case-sensitive!) artists:
+>
+	:Denite mpc:artist:genre:Rock
+<
+	- To list all track titles from an album:
+>
+	:Denite mpc:title:album:Blonde\ on\ Blonde
+<
+	- You can combine filters:
+>
+	:Denite mpc:album:artist:Bob\ Dylan:date:1965
+<
+==============================================================================
+INSTALL							*denite-mpc-install*
+
+Latest version:
+https://github.com/rafi/vim-denite-mpc
+
+Requirements:
+- Vim or Neovim
+- |denite|
+- Python 3.5 or later
+
+Note: |denite| requires Neovim (the latest is recommended) or Vim8.0+ with
+|:python3| enabled.
+
+Use your favorite plugin manager, mine is |dein|.
+
+==============================================================================
+EXAMPLES						*denite-mpc-examples*
+>
+	call denite#custom#var('mpc', 'host', 'localhost')
+	call denite#custom#var('mpc', 'port', 6600)
+	call denite#custom#var('mpc', 'timeout', 5.0)
+<
+
+==============================================================================
+CUSTOMIZE						*unite-mpc-customize*
+
+==============================================================================
+SOURCES							  *denite-mpc-sources*
+
+mpc     Gather music library items			   *denite-source-mpc*
+
+
+
+==============================================================================
+CHANGELOG						*denite-ghq-changelog*
+
+0.1.0   2016-11-18
+        - Initial version.
+
+
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:noet:fen:
