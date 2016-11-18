@@ -19,7 +19,7 @@ class Source(Base):
         super().__init__(vim)
 
         self.name = 'mpc'
-        self.kind = 'command'
+        self.kind = 'mpc'
         self.__cache = {}
         self.vars = {
             'host': 'localhost',
@@ -92,7 +92,7 @@ class Source(Base):
         self.__sock = Socket(
             self.vars['host'],
             self.vars['port'],
-            command,
+            [command],
             context,
             self.vars['timeout'])
 
@@ -149,10 +149,10 @@ class Source(Base):
 
     def _parse_candidate(self, item):
         """ Returns a dict representing the item's candidate schema """
-        # Collect a metadata dict to be used for custom formatting.
+        # Collect a metadata dict to be used for customizable formatting.
         # - Artists displayed using 'Albumartist' or if empty, use 'Artist'
         # - Track number receives a leading-zero
-        meta = {x: item.get(x) for x in self.vars['tags']}
+        meta = {x: item.get(x, '') for x in self.vars['tags']}
 
         if 'albumartist' in meta and not meta.get('albumartist'):
             meta['albumartist'] = item.get('artist')
@@ -160,7 +160,6 @@ class Source(Base):
         if meta['track']:
             meta['track'] = meta['track'].split('/')[0].zfill(2)
 
-        # Format the candidate human-friendly output
         if self.__formatter:
             word = self.__formatter.format(**meta)
         else:
@@ -176,7 +175,11 @@ class Source(Base):
         if target:
             source = 'Denite mpc:{}:{}:{}'.format(target, self.__entity, value)
 
-        return {'word': word, 'action__command': source}
+        candidate = {'meta_{}'.format(x): item.get(x)
+                     for x in self.vars['tags'] if item.get(x)}
+        candidate['word'] = word
+        candidate['action__list'] = source
+        return candidate
 
     def _apply_filters(self, items):
         """ Sort dates with newer first and track title numbers """
