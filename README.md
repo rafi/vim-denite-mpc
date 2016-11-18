@@ -8,6 +8,9 @@ MPD client for Vim to browse your music library by categories and filters.
 - Fast socket receiving and buffering
 - Asynchronous [denite.nvim] gathering
 - Caching for large libraries
+- Custom formatting
+- Multiple filters
+- Add / Play / Replace
 
 ## Screenshot
 
@@ -49,9 +52,7 @@ call denite#custom#var('mpc', 'timeout', 5.0)
 
 ## Planned Features
 
-- [x] Custom formatting
-- [x] Multiple filters
-- [ ] Add / Play / Replace
+- [ ] Playlist management
 
 ## Credits & Contribution
 
