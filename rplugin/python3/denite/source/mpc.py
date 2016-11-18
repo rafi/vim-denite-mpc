@@ -50,8 +50,8 @@ class Source(Base):
         self.__sock = None
         self.__entity = context['__entity'] = \
                 context['args'].pop(0) if len(context['args']) > 0 else 'date'
-        self.__checksum = '{} {}'.format(
-            self.__entity, ' '.join(context['args']))
+        self.__hash = '{} {}'.format(
+            self.__entity, ' '.join(context['args'])).__hash__()
 
     def on_close(self, context):
         """ Kill the socket when source's window closes """
@@ -79,9 +79,9 @@ class Source(Base):
             self.__entity,
             ' '.join(['"{}"'.format(self._escape(a)) for a in context['args']]))
 
-        # Use cache if checksum exists
-        if self.__checksum in self.__cache:
-            return self.__cache[self.__checksum]
+        # Use cache if hash exists
+        if self.__hash in self.__cache:
+            return self.__cache[self.__hash]
 
         # Open socket and send command
         self.__current_candidates = []
@@ -133,7 +133,7 @@ class Source(Base):
 
         # Cache items if there are more than the cache threshold
         if len(self.__current_candidates) >= self.vars['min_cache_files']:
-            self.__cache[self.__checksum] = self.__current_candidates
+            self.__cache[self.__hash] = self.__current_candidates
         return candidates
 
     def _escape(self, s):
