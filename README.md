@@ -9,6 +9,10 @@ MPD client for Vim to browse your music library by categories and filters.
 - Asynchronous [denite.nvim] gathering
 - Caching for large libraries
 
+## Screenshot
+
+![vim-denite-mpc screenshot](http://rafi.io/static/img/project/vim-denite-mpc/browsing.gif)
+
 ## Installation
 
 ### Requirements

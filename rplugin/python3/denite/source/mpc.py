@@ -138,8 +138,9 @@ class Source(Base):
 
     def _escape(self, s):
         """ Escape certain characters with backslash """
-        s = re.sub(r'(\\)', r'\\\\\\\1', s)
-        s = re.sub(r'([:"\ ])', r'\\\1', s)
+        if s:
+            s = re.sub(r'(\\)', r'\\\\\\\1', s)
+            s = re.sub(r'([:"\ ])', r'\\\1', s)
         return s
 
     def _parse_candidate(self, item):
