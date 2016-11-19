@@ -71,7 +71,7 @@ class Kind(Base):
             args = [command]
             for key, value in self._metadata(candidate).items():
                 args.append(key)
-                args.append(self._escape(value))
+                args.append('"{}"'.format(self._escape(value)))
             cmds.append(' '.join(args))
 
         return cmds
