@@ -36,12 +36,14 @@ class Source(Base):
                 'genre': '{genre}',
                 'artist': '{artist}',
                 'album': '{albumartist} - {album} ({date})',
+                'albumartist': '{albumartist} - {album} ({date})',
                 'title': '{track} {artist} - {title}',
             },
             'targets': {
                 'date': 'album',
                 'genre': 'album',
                 'artist': 'album',
+                'albumartist': 'album',
                 'album': 'title',
                 'title': None
             }
@@ -54,6 +56,8 @@ class Source(Base):
         else:
             self.__entity = self.vars['default_view']
 
+        self.__status = self.vim.vars.get('denite_mpc_status', {})
+        self.__playlist = self.vim.vars.get('denite_mpc_playlist', [])
         self.__hash = '{} {}'.format(
             self.__entity, ' '.join(context['args'])).__hash__()
 
@@ -81,22 +85,37 @@ class Source(Base):
         # Concat command to be sent to socket
         command = 'list "{}" {}'.format(
             self.__entity,
-            ' '.join(['"{}"'.format(self._escape(a)) for a in context['args']]))
+            ' '.join(['"{}"'.format(a.replace('"', '\\"'))
+                      for a in context['args']]))
 
         # Use cache if hash exists
         if self.__hash in self.__cache:
             return self.__cache[self.__hash]
+
+        commands = [command]
+        if not self.__playlist:
+            commands.insert(0, 'playlist')
+        if not self.__status:
+            commands.insert(0, 'status')
 
         # Open socket and send command
         self.__current_candidates = []
         self.__sock = Socket(
             self.vars['host'],
             self.vars['port'],
-            [command],
+            commands,
             context,
             self.vars['timeout'])
 
+        sleep(0.1)
         return self.__async_gather_candidates(context, 2.0)
+
+    def _sort(self, items):
+        """ Sort dates with newer first and track title numbers """
+        return sorted(
+            items,
+            key=itemgetter('word'),
+            reverse=self.__entity == 'date')
 
     def __async_gather_candidates(self, context, timeout):
         """ Collect all candidates from socket communication """
@@ -111,13 +130,28 @@ class Source(Base):
         # Parse the socket output lines according to mpd's protocol
         candidates = []
         current = {}
+        status_consumed = bool(self.__status)
         for line in lines:
+            if line == 'OK' and not status_consumed:
+                self.vim.vars['denite_mpc_status'] = self.__status
+                status_consumed = True
+                continue
+
             parts = line.split(': ', 1)
             if len(parts) < 2 or not parts[1]:
                 continue
-
             key = parts[0].lower()
             val = parts[1]
+
+            # Parse status and playlist
+            if not status_consumed:
+                self.__status[key] = val
+                continue
+            elif key.endswith(':file'):
+                self.__playlist.append(val)
+                continue
+
+            # Parse object metadata
             if key == self.__entity and current:
                 candidates.append(self._parse_candidate(current))
                 current = {}
@@ -131,26 +165,23 @@ class Source(Base):
         if current:
             candidates.append(self._parse_candidate(current))
 
+        if self.__playlist:
+            self.vim.vars['denite_mpc_playlist'] = self.__playlist
+
         # Sort candidates if applicable, and add to the global collection
-        candidates = self._apply_filters(candidates)
-        self.__current_candidates += candidates
+        if candidates:
+            candidates = self._sort(candidates)
+            self.__current_candidates += candidates
 
         # Cache items if there are more than the cache threshold
         if len(self.__current_candidates) >= self.vars['min_cache_files']:
             self.__cache[self.__hash] = self.__current_candidates
         return candidates
 
-    def _escape(self, s):
-        """ Escape certain characters with backslash """
-        if s:
-            s = re.sub(r'(\\)', r'\\\\\\\1', s)
-            s = re.sub(r'([:"\ ])', r'\\\1', s)
-        return s
-
     def _parse_candidate(self, item):
         """ Returns a dict representing the item's candidate schema """
         # Collect a metadata dict to be used for customizable formatting.
-        # - Artists displayed using 'Albumartist' or if empty, use 'Artist'
+        # - If 'Albumartist' is empty, use 'Artist' instead
         # - Track number receives a leading-zero
         meta = {x: item.get(x, '') for x in self.vars['tags']}
 
@@ -165,27 +196,7 @@ class Source(Base):
         else:
             word = item.get(self.__entity, '')
 
-        # Escape the meta key value to be sent later
-        # to Denite, if candidate selected.
-        value = self._escape(meta.get(self.__entity, ''))
-
-        # Concat the candidate's command executed when selected
-        source = ''
-        target = self.vars['targets'].get(self.__entity)
-        if target:
-            source = 'Denite mpc:{}:{}:{}'.format(target, self.__entity, value)
-
         candidate = {'meta_{}'.format(x): item.get(x)
                      for x in self.vars['tags'] if item.get(x)}
-        candidate['word'] = word
-        candidate['action__list'] = source
+        candidate.update({'word': word, 'mpc__kind': self.__entity})
         return candidate
-
-    def _apply_filters(self, items):
-        """ Sort dates with newer first and track title numbers """
-        if self.__entity == 'date':
-            return sorted(items, key=itemgetter('word'), reverse=True)
-        elif self.__entity == 'title':
-            return sorted(items, key=itemgetter('word'))
-        else:
-            return items
