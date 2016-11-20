@@ -196,7 +196,7 @@ class Source(Base):
         else:
             word = item.get(self.__entity, '')
 
-        candidate = {'meta_{}'.format(x): item.get(x)
+        candidate = {'meta__{}'.format(x): item.get(x)
                      for x in self.vars['tags'] if item.get(x)}
         candidate.update({'word': word, 'mpc__kind': self.__entity})
         return candidate

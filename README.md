@@ -52,6 +52,7 @@ call denite#custom#var('mpc', 'timeout', 5.0)
 
 ## Planned Features
 
+- [ ] Random playlist
 - [ ] Playlist management
 
 ## Credits & Contribution
