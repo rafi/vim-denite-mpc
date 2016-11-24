@@ -25,7 +25,7 @@ class Source(Base):
             'host': 'localhost',
             'port': 6600,
             'min_cache_files': 5000,
-            'timeout': 5.0,
+            'timeout': 2.0,
             'default_view': 'date',
             'tags': [
                 'date', 'genre', 'title', 'album',
@@ -70,7 +70,7 @@ class Source(Base):
     def gather_candidates(self, context):
         """ Initiate socket communicate """
         if self.__sock:
-            return self.__async_gather_candidates(context, 1.0)
+            return self.__async_gather_candidates(context, 0.5)
 
         if context['is_redraw']:
             self.__cache = {}
@@ -86,7 +86,7 @@ class Source(Base):
         command = 'list "{}" {}'.format(
             self.__entity,
             ' '.join(['"{}"'.format(a.replace('"', '\\"'))
-                      for a in context['args']]))
+                      for a in context['args']])).strip()
 
         # Use cache if hash exists
         if self.__hash in self.__cache:
@@ -108,7 +108,7 @@ class Source(Base):
             self.vars['timeout'])
 
         sleep(0.1)
-        return self.__async_gather_candidates(context, 2.0)
+        return self.__async_gather_candidates(context, self.vars['timeout'])
 
     def _sort(self, items):
         """ Sort dates with newer first and track title numbers """

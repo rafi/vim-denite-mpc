@@ -92,7 +92,7 @@ class Kind(Base):
 
     def _metadata(self, candidate):
         """ Return clean metadata dict from candidate """
-        return {key[5:]: value for key, value in candidate.items()
+        return {key[6:]: value for key, value in candidate.items()
                 if value and key.startswith('meta__')}
 
     def _playlist(self):
