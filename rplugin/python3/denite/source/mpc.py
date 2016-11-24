@@ -30,7 +30,7 @@ class Source(Base):
             'default_view': 'date',
             'tags': [
                 'date', 'genre', 'title', 'album',
-                'track', 'artist', 'albumartist'
+                'track', 'artist', 'albumartist', 'pos'
             ],
             'formats': {
                 'date': '{date}',
@@ -38,7 +38,7 @@ class Source(Base):
                 'artist': '{artist}',
                 'album': '{albumartist} - {album} ({date})',
                 'albumartist': '{albumartist} - {album} ({date})',
-                'title': '{track} {current}{artist} - {title}',
+                'title': '{track} {current}{artist} - {title}'
             },
             'targets': {
                 'date': 'album',
@@ -86,23 +86,27 @@ class Source(Base):
 
         if context['is_redraw']:
             self.__cache = {}
+        # Use cache if hash exists
+        elif self.__hash in self.__cache:
+            return self.__cache[self.__hash]
 
         # Find which tags we need according to the formatter string
-        pattern = re.compile(r'{([\w]*)}')
-        self.__formatter = self.vars['formats'].get(self.__entity)
-        for field_name in re.findall(pattern, self.__formatter):
-            if field_name != self.__entity and field_name != 'current':
-                context['args'] += ['group', field_name]
+        if self.__entity == 'playlist':
+            self.__entity = 'file'
+            self.__formatter = self.vars['formats'].get('title')
+            command = 'playlistinfo'
+        else:
+            pattern = re.compile(r'{([\w]*)}')
+            self.__formatter = self.vars['formats'].get(self.__entity)
+            for field_name in re.findall(pattern, self.__formatter):
+                if field_name != self.__entity and field_name != 'current':
+                    context['args'] += ['group', field_name]
 
-        # Concat command to be sent to socket
-        command = 'list "{}" {}'.format(
-            self.__entity,
-            ' '.join(['"{}"'.format(a.replace('"', '\\"'))
-                      for a in context['args']])).strip()
-
-        # Use cache if hash exists
-        if self.__hash in self.__cache:
-            return self.__cache[self.__hash]
+            # Concat command to be sent to socket
+            command = 'list "{}" {}'.format(
+                self.__entity,
+                ' '.join(['"{}"'.format(a.replace('"', '\\"'))
+                         for a in context['args']])).strip()
 
         commands = [command]
         if not self.__playlist:
@@ -162,6 +166,11 @@ class Source(Base):
             key = parts[0].lower()
             val = parts[1]
 
+            # Set current playing song info
+            if self.__status and self.__status.get('state') == 'play' and \
+               'id' in current and current['id'] == self.__status['songid']:
+                self.__current = self.vim.vars['denite_mpc_current'] = current
+
             # Parse status and playlist
             # Parse object metadata
             if not status_consumed:
@@ -169,9 +178,6 @@ class Source(Base):
                 continue
             elif not playlist_consumed:
                 if key == 'file' and current:
-                    if self.__status['state'] == 'play' and \
-                       current['id'] == self.__status['songid']:
-                        self.vim.vars['denite_mpc_current'] = current
                     self.__playlist.append(current)
                     current = {}
             elif key == self.__entity and current:

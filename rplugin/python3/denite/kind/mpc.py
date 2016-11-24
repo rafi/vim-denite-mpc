@@ -27,8 +27,8 @@ class Kind(Base):
         for candidate in context['targets']:
             mpc_kind = candidate.get('mpc__kind')
 
-            # For tracks, use 'play' instead of 'list'.
-            if mpc_kind == 'title':
+            # For tracks and playlist items, use 'play' instead of 'list'.
+            if mpc_kind in ['title', 'file']:
                 self.action_play(context)
                 continue
 
@@ -46,11 +46,16 @@ class Kind(Base):
             self.error('Candidate is missing metadata: {}'.format(candidate))
 
     def action_play(self, context):
-        """ Action: Add selected to playlist and start playing it """
+        """ Action: Add selected to playlist and start playing it,
+                    or just play them if in playlist view """
         self._get_vars(context)
-        cmds = self._get_commands('findadd', context)
-        self._send(cmds, context)
-        next = len(self._playlist())
+        if context['targets'][0].get('mpc__kind') == 'file':
+            next = context['targets'][0].get('meta__pos')
+        else:
+            cmds = self._get_commands('findadd', context)
+            self._send(cmds, context)
+            next = len(self._playlist())
+
         self._send(['play {}'.format(next)], context)
         self._kill()
 
@@ -123,5 +128,6 @@ class Kind(Base):
         """ Close socket connection and clean cache """
         self.vim.vars['denite_mpc_playlist'] = []
         self.vim.vars['denite_mpc_status'] = {}
+        self.vim.vars['denite_mpc_current'] = {}
         self.__sock.kill()
         self.__sock = None
