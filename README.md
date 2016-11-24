@@ -46,6 +46,7 @@ Here are a few examples:
 call denite#custom#var('mpc', 'host', 'localhost')
 call denite#custom#var('mpc', 'port', 6600)
 call denite#custom#var('mpc', 'timeout', 5.0)
+call denite#custom#var('mpc', 'default_view', 'artist')
 ```
 
 - The default values are shown.
@@ -53,7 +54,7 @@ call denite#custom#var('mpc', 'timeout', 5.0)
 ## Planned Features
 
 - [ ] Random playlist
-- [ ] Playlist management
+- [ ] Playlists management
 
 ## Credits & Contribution
 

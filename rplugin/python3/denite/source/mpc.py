@@ -27,7 +27,7 @@ class Source(Base):
             'port': 6600,
             'min_cache_files': 5000,
             'timeout': 2.0,
-            'default_view': 'date',
+            'default_view': 'artist',
             'tags': [
                 'date', 'genre', 'title', 'album',
                 'track', 'artist', 'albumartist', 'pos'
