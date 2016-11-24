@@ -20,6 +20,7 @@ class Source(Base):
 
         self.name = 'mpc'
         self.kind = 'mpc'
+        self.syntax_name = 'deniteSource_mpc'
         self.__cache = {}
         self.vars = {
             'host': 'localhost',
@@ -37,7 +38,7 @@ class Source(Base):
                 'artist': '{artist}',
                 'album': '{albumartist} - {album} ({date})',
                 'albumartist': '{albumartist} - {album} ({date})',
-                'title': '{track} {artist} - {title}',
+                'title': '{track} {current}{artist} - {title}',
             },
             'targets': {
                 'date': 'album',
@@ -57,6 +58,7 @@ class Source(Base):
             self.__entity = self.vars['default_view']
 
         self.__status = self.vim.vars.get('denite_mpc_status', {})
+        self.__current = self.vim.vars.get('denite_mpc_current', {})
         self.__playlist = self.vim.vars.get('denite_mpc_playlist', [])
         self.__hash = '{} {}'.format(
             self.__entity, ' '.join(context['args'])).__hash__()
@@ -66,6 +68,16 @@ class Source(Base):
         if self.__sock:
             self.__sock.kill()
             self.__sock = None
+
+    def highlight_syntax(self):
+        self.vim.command(
+            'syntax region ' + self.syntax_name + ' start=// end=/$/ '
+            'contains=deniteMatched contained')
+        self.vim.command(
+            'syntax match deniteSource_mpcCurrent /.*▶\s.*/ '
+            ' contained containedin=' + self.syntax_name)
+        self.vim.command(
+            'highlight default link deniteSource_mpcCurrent Todo')
 
     def gather_candidates(self, context):
         """ Initiate socket communicate """
@@ -79,7 +91,7 @@ class Source(Base):
         pattern = re.compile(r'{([\w]*)}')
         self.__formatter = self.vars['formats'].get(self.__entity)
         for field_name in re.findall(pattern, self.__formatter):
-            if field_name != self.__entity:
+            if field_name != self.__entity and field_name != 'current':
                 context['args'] += ['group', field_name]
 
         # Concat command to be sent to socket
@@ -94,7 +106,7 @@ class Source(Base):
 
         commands = [command]
         if not self.__playlist:
-            commands.insert(0, 'playlist')
+            commands.insert(0, 'playlistinfo')
         if not self.__status:
             commands.insert(0, 'status')
 
@@ -119,8 +131,8 @@ class Source(Base):
 
     def __async_gather_candidates(self, context, timeout):
         """ Collect all candidates from socket communication """
-
         lines = self.__sock.communicate(timeout=timeout)
+        sleep(0.1)
         context['is_async'] = not self.__sock.eof()
         if self.__sock.eof():
             self.__sock = None
@@ -131,10 +143,17 @@ class Source(Base):
         candidates = []
         current = {}
         status_consumed = bool(self.__status)
+        playlist_consumed = bool(self.__playlist)
         for line in lines:
             if line == 'OK' and not status_consumed:
                 self.vim.vars['denite_mpc_status'] = self.__status
                 status_consumed = True
+                continue
+            elif line == 'OK' and not playlist_consumed:
+                if current:
+                    self.__playlist.append(current)
+                self.vim.vars['denite_mpc_playlist'] = self.__playlist
+                playlist_consumed = True
                 continue
 
             parts = line.split(': ', 1)
@@ -144,29 +163,33 @@ class Source(Base):
             val = parts[1]
 
             # Parse status and playlist
+            # Parse object metadata
             if not status_consumed:
                 self.__status[key] = val
                 continue
-            elif key.endswith(':file'):
-                self.__playlist.append(val)
-                continue
-
-            # Parse object metadata
-            if key == self.__entity and current:
+            elif not playlist_consumed:
+                if key == 'file' and current:
+                    if self.__status['state'] == 'play' and \
+                       current['id'] == self.__status['songid']:
+                        self.vim.vars['denite_mpc_current'] = current
+                    self.__playlist.append(current)
+                    current = {}
+            elif key == self.__entity and current:
                 candidates.append(self._parse_candidate(current))
                 current = {}
-            elif key in current:
+
+            if key in current:
                 if isinstance(current[key], str):
                     current[key] = [current[key]]
                 current[key].append(val)
-
-            current[key] = val
+            else:
+                current[key] = val
 
         if current:
-            candidates.append(self._parse_candidate(current))
-
-        if self.__playlist:
-            self.vim.vars['denite_mpc_playlist'] = self.__playlist
+            if not playlist_consumed and 'file' in current:
+                self.__playlist.append(current)
+            else:
+                candidates.append(self._parse_candidate(current))
 
         # Sort candidates if applicable, and add to the global collection
         if candidates:
@@ -183,13 +206,21 @@ class Source(Base):
         # Collect a metadata dict to be used for customizable formatting.
         # - If 'Albumartist' is empty, use 'Artist' instead
         # - Track number receives a leading-zero
+        # - If current candidate is playing, mark 'current'
         meta = {x: item.get(x, '') for x in self.vars['tags']}
+
+        meta['current'] = ''
+        if self.__current and \
+           {self.__current.get(x) for x in ['artist', 'title', 'track']} == \
+           {meta.get(x) for x in ['artist', 'title', 'track']}:
+            meta['current'] = '▶ '
 
         if 'albumartist' in meta and not meta.get('albumartist'):
             meta['albumartist'] = item.get('artist')
 
         if meta['track']:
-            meta['track'] = meta['track'].split('/')[0].zfill(2)
+            track, total = meta['track'].split('/', 1)
+            meta['track'] = track.zfill(len(total or '10'))
 
         if self.__formatter:
             word = self.__formatter.format(**meta)
