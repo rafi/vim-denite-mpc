@@ -1,16 +1,17 @@
 # denite-mpc
 
-MPD client for Vim to browse your music library by categories and filters.
+Neovim/Vim8 MPD client for browsing your music library by categories and filters
+with the dark powered [denite.nvim] asynchronous interface framework.
 
 ## Features
 
 - No dependencies (except [denite.nvim])
-- Fast socket receiving and buffering
+- Fast socket communication with MPD (_no_ need for `mpc`)
 - Asynchronous [denite.nvim] gathering
+- Add / play / replace selected
 - Caching for large libraries
-- Custom formatting
-- Multiple filters
-- Add / Play / Replace
+- Customizable formatting
+- Multiple query filters
 
 ## Screenshot
 
@@ -24,7 +25,11 @@ MPD client for Vim to browse your music library by categories and filters.
 - [denite.nvim]
 - Python 3.4 or later
 
-Use your favorite plugin manager, mine is [dein.vim].
+Use your favorite plugin manager, mine is [dein.vim], e.g.:
+
+```sh
+call dein#add('rafi/vim-denite-mpc', {'on_source': 'denite.nvim'})
+```
 
 ## Usage
 
@@ -34,13 +39,31 @@ Use your favorite plugin manager, mine is [dein.vim].
 
 Here are a few examples:
 
-- To browse library by dates: `:Denite mpc:date`
-- To browse albums, but just for year 2016: `:Denite mpc:album:date:2016`
-- To list all Rock (case-sensitive!) artists: `:Denite mpc:artist:genre:Rock`
-- To list all track titles from an album: `:Denite mpc:title:album:Blonde\ on\ Blonde`
-- You can combine filters: `:Denite mpc:album:artist:Bob\ Dylan:date:1965`
+ Command | Description
+-------- | -----------
+`:Denite mpc:date` | Browse library by dates
+`:Denite mpc:album:date:2016` | Browse albums, but just for year 2016
+`:Denite mpc:artist:genre:Rock` | List all Rock (case-sensitive!) artists
+`:Denite mpc:title:album:Blonde\ on\ Blonde` | List all track titles from an album
+`:Denite mpc:album:genre:Electronic:date:2007` | You can combine filters
 
-### Configuration
+### Manage Playlist
+
+You can view your current playlist:
+
+```viml
+:Denite mpc:playlist
+```
+
+### Actions
+
+- `add` - Add selected items to playlist
+- `play` - Add items and start playing
+- `replace` - Clear playlist, add items, and start playing
+
+The default action is `play`.
+
+## Configuration
 
 ```viml
 call denite#custom#var('mpc', 'host', 'localhost')
@@ -53,13 +76,15 @@ call denite#custom#var('mpc', 'default_view', 'artist')
 
 ## Planned Features
 
-- [ ] Random playlist
-- [ ] Playlists management
+- [ ] Replace playlist with random songs
+- [ ] Playlist items _(append/delete/replace)_
+- [ ] Playlists management _(create/delete/load)_
 
 ## Credits & Contribution
 
-Without [Shougo] this wouldn't be possible.
 This plugin was developed by Rafael Bodill under the MIT License.
+
+Without [Shougo] this wouldn't be possible.
 
 Pull requests are welcome.
 
