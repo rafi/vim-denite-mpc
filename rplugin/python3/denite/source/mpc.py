@@ -38,7 +38,8 @@ class Source(Base):
                 'artist': '{artist}',
                 'album': '{albumartist} - {album} ({date})',
                 'albumartist': '{albumartist} - {album} ({date})',
-                'title': '{track} {current}{artist} - {title}'
+                'title': '{track} {current}{artist} - {title}',
+                'playlist': '{current}{artist} - {title} | {album} | {date}'
             },
             'targets': {
                 'date': 'album',
@@ -57,8 +58,8 @@ class Source(Base):
         else:
             self.__entity = self.vars['default_view']
 
+        self.__current = {}
         self.__status = self.vim.vars.get('denite_mpc_status', {})
-        self.__current = self.vim.vars.get('denite_mpc_current', {})
         self.__playlist = self.vim.vars.get('denite_mpc_playlist', [])
         self.__hash = '{} {}'.format(
             self.__entity, ' '.join(context['args'])).__hash__()
@@ -74,8 +75,10 @@ class Source(Base):
             'syntax region ' + self.syntax_name + ' start=// end=/$/ '
             'contains=deniteMatched contained')
         self.vim.command(
-            'syntax match deniteSource_mpcCurrent /.*▶\s.*/ '
-            ' contained containedin=' + self.syntax_name)
+            'syntax match deniteSource_mpcCurrent /^\s*▶.*/ '
+            ' contains=deniteSource_mpcMark containedin=' + self.syntax_name)
+        self.vim.command(
+            'syntax match deniteSource_mpcMark /^\s*▶/ conceal contained')
         self.vim.command(
             'highlight default link deniteSource_mpcCurrent Todo')
 
@@ -85,21 +88,23 @@ class Source(Base):
             return self.__async_gather_candidates(context, 0.5)
 
         if context['is_redraw']:
+            self.__status = self.vim.vars['denite_mpc_status'] = {}
+            self.__playlist = self.vim.vars['denite_mpc_playlist'] = []
             self.__cache = {}
+
         # Use cache if hash exists
         elif self.__hash in self.__cache:
             return self.__cache[self.__hash]
 
-        # Find which tags we need according to the formatter string
+        # Concat command
+        self.__formatter = self.vars['formats'].get(self.__entity)
         if self.__entity == 'playlist':
-            self.__entity = 'file'
-            self.__formatter = self.vars['formats'].get('title')
             command = 'playlistinfo'
         else:
+            # Find which tags we need according to the formatter string
             pattern = re.compile(r'{([\w]*)}')
-            self.__formatter = self.vars['formats'].get(self.__entity)
             for field_name in re.findall(pattern, self.__formatter):
-                if field_name != self.__entity and field_name != 'current':
+                if field_name != self.__entity:
                     context['args'] += ['group', field_name]
 
             # Concat command to be sent to socket
@@ -128,7 +133,7 @@ class Source(Base):
 
     def _sort(self, items):
         """ Sort dates with newer first and track title numbers """
-        return sorted(
+        return items if self.__entity == 'playlist' else sorted(
             items,
             key=itemgetter('word'),
             reverse=self.__entity == 'date')
@@ -146,6 +151,7 @@ class Source(Base):
         # Parse the socket output lines according to mpd's protocol
         candidates = []
         current = {}
+        separator = self.__entity if self.__entity != 'playlist' else 'file'
         status_consumed = bool(self.__status)
         playlist_consumed = bool(self.__playlist)
         for line in lines:
@@ -169,7 +175,7 @@ class Source(Base):
             # Set current playing song info
             if self.__status and self.__status.get('state') == 'play' and \
                'id' in current and current['id'] == self.__status['songid']:
-                self.__current = self.vim.vars['denite_mpc_current'] = current
+                self.__current = current
 
             # Parse status and playlist
             # Parse object metadata
@@ -180,7 +186,7 @@ class Source(Base):
                 if key == 'file' and current:
                     self.__playlist.append(current)
                     current = {}
-            elif key == self.__entity and current:
+            elif key == separator and current:
                 candidates.append(self._parse_candidate(current))
                 current = {}
 
@@ -215,16 +221,10 @@ class Source(Base):
         # - If current candidate is playing, mark 'current'
         meta = {x: item.get(x, '') for x in self.vars['tags']}
 
-        meta['current'] = ''
-        if self.__current and \
-           {self.__current.get(x) for x in ['artist', 'title', 'track']} == \
-           {meta.get(x) for x in ['artist', 'title', 'track']}:
-            meta['current'] = '▶ '
-
         if 'albumartist' in meta and not meta.get('albumartist'):
             meta['albumartist'] = item.get('artist')
 
-        if meta['track']:
+        if self.__entity != 'playlist' and meta['track']:
             track, total = meta['track'].split('/', 1)
             meta['track'] = track.zfill(len(total or '10'))
 
@@ -233,7 +233,13 @@ class Source(Base):
         else:
             word = item.get(self.__entity, '')
 
+        if self.__current and \
+           {self.__current.get(x) for x in ['artist', 'title', 'track']} == \
+           {meta.get(x) for x in ['artist', 'title', 'track']}:
+            word = '▶' + word
+
         candidate = {'meta__{}'.format(x): item.get(x)
                      for x in self.vars['tags'] if item.get(x)}
-        candidate.update({'word': word, 'mpc__kind': self.__entity})
+        mpc_kind = self.__entity if self.__entity != 'playlist' else 'file'
+        candidate.update({'word': word, 'mpc__kind': mpc_kind})
         return candidate
