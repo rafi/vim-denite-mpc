@@ -38,8 +38,9 @@ class Source(Base):
                 'artist': '{artist}',
                 'album': '{albumartist} - {album} ({date})',
                 'albumartist': '{albumartist} - {album} ({date})',
-                'title': '{track} {current}{artist} - {title}',
-                'playlist': '{current}{artist} - {title} | {album} | {date}'
+                'title': '{track} {artist} - {title}',
+                'playlist': '{artist:19.19} {track:4.4} {title:25.25} '
+                            '{album:>20.20} {date:^4.4} {genre}'
             },
             'targets': {
                 'date': 'album',
@@ -229,7 +230,8 @@ class Source(Base):
             meta['track'] = track.zfill(len(total or '10'))
 
         if self.__formatter:
-            word = self.__formatter.format(**meta)
+            formatter = self._calc_percentage(self.__formatter)
+            word = formatter.format(**meta)
         else:
             word = item.get(self.__entity, '')
 
@@ -243,3 +245,14 @@ class Source(Base):
         mpc_kind = self.__entity if self.__entity != 'playlist' else 'file'
         candidate.update({'word': word, 'mpc__kind': mpc_kind})
         return candidate
+
+    def _calc_percentage(self, format):
+        """ Compiles sizes from numbers in format, handled as percentage """
+        winwidth = self.vim.call('winwidth', 0)
+        pattern = r'([\<\>\.\:\^])(\d+)'
+
+        def calc_percent(obj):
+            percent = round(winwidth * (int(obj.group(2)) / 100))
+            return obj.group(1) + str(percent)
+
+        return re.sub(pattern, calc_percent, self.__formatter)
