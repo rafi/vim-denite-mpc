@@ -9,9 +9,9 @@ with the dark powered [denite.nvim] asynchronous interface framework.
 - Fast socket communication with MPD (_no_ need for `mpc`)
 - Asynchronous [denite.nvim] gathering
 - Add / play / replace selected
-- Caching for large libraries
-- Customizable formatting
+- Customizable formatting with special percentage treatment
 - Multiple query filters
+- Caching for large libraries
 
 ## Screenshot
 
@@ -74,6 +74,26 @@ call denite#custom#var('mpc', 'default_view', 'artist')
 
 - The default values are shown.
 
+## Customize
+
+Example of changing formatting:
+
+```viml
+call denite#custom#var('mpc', 'formats', {
+  \     'date': '{date:^100}',
+  \     'genre': '{genre:>10}',
+  \     'artist': '{artist}',
+  \     'album': '{albumartist} - {album} ({date})',
+  \     'albumartist': '{albumartist} - {album} ({date})',
+  \     'title': '{track} {artist} - {title}',
+  \     'playlist': '{artist:19.19} {track:4.4} {title:25.25} '
+  \                 '{album:>20.20} {date:^4.4} {genre}'
+  \ })
+```
+
+The formatting is done via [str.format()], when using padding or truncating,
+denite-mpc will transform your integers into percentage to leverage win-width.
+
 ## Planned Features
 
 - [ ] Replace playlist with random songs
@@ -91,3 +111,4 @@ Pull requests are welcome.
 [Shougo]: https://github.com/Shougo
 [denite.nvim]: https://github.com/Shougo/denite.nvim
 [dein.vim]: https://github.com/Shougo/dein.vim
+[str.format()]: https://docs.python.org/3/library/string.html#formatstrings
