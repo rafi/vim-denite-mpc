@@ -6,7 +6,6 @@
 
 import os
 import re
-from operator import itemgetter
 
 from .base import Base
 from denite.socket import Socket
@@ -21,7 +20,10 @@ class Source(Base):
         self.name = 'mpc'
         self.kind = 'mpc'
         self.syntax_name = 'deniteSource_mpc'
+        self.matchers = ['matcher_fuzzy']
+        self.sorters = []
         self.__cache = {}
+
         self.vars = {
             'host': os.environ.get('MPD_HOST', 'localhost'),
             'port': os.environ.get('MPD_PORT', 6600),
@@ -53,7 +55,7 @@ class Source(Base):
         }
 
     def on_init(self, context):
-        self.__sock = None
+        context['__sock'] = None
         if len(context['args']) > 0:
             self.__entity = context['args'].pop(0)
         else:
@@ -66,9 +68,9 @@ class Source(Base):
 
     def on_close(self, context):
         """ Kill the socket when source's window closes """
-        if self.__sock:
-            self.__sock.kill()
-            self.__sock = None
+        if context['__sock']:
+            context['__sock'].kill()
+            context['__sock'] = None
 
     def highlight_syntax(self):
         self.vim.command(
@@ -84,7 +86,7 @@ class Source(Base):
 
     def gather_candidates(self, context):
         """ Initiate socket communicate """
-        if self.__sock:
+        if context['__sock']:
             return self.__async_gather_candidates(context, 0.03)
 
         if context['is_redraw']:
@@ -119,7 +121,7 @@ class Source(Base):
 
         # Open socket and send command
         self.__current_candidates = []
-        self.__sock = Socket(
+        context['__sock'] = Socket(
             self.vars['host'],
             self.vars['port'],
             commands,
@@ -128,19 +130,13 @@ class Source(Base):
 
         return self.__async_gather_candidates(context, self.vars['timeout'])
 
-    def _sort(self, items):
-        """ Sort dates with newer first and track title numbers """
-        return items if self.__entity == 'playlist' else sorted(
-            items,
-            key=itemgetter('word'),
-            reverse=self.__entity == 'date')
-
     def __async_gather_candidates(self, context, timeout):
         """ Collect all candidates from socket communication """
-        lines = self.__sock.communicate(timeout=timeout)
-        context['is_async'] = not self.__sock.eof()
-        if self.__sock.eof():
-            self.__sock = None
+        lines = context['__sock'].communicate(timeout=timeout)
+        context['is_async'] = not context['__sock'].eof()
+
+        if context['__sock'].eof():
+            context['__sock'] = None
         if not lines:
             return []
 
@@ -184,9 +180,7 @@ class Source(Base):
         if current:
             candidates.append(self._parse_candidate(current))
 
-        # Sort candidates if applicable, and add to the global collection
         if candidates:
-            candidates = self._sort(candidates)
             self.__current_candidates += candidates
 
         # Cache items if there are more than the cache threshold

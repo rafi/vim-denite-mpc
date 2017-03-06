@@ -18,7 +18,15 @@ class Kind(Base):
 
         self.name = 'mpc'
         self.default_action = 'list'
+        self.persist_actions = ['play', 'add', 'replace']
+        self.redraw_actions = ['play']
+
         self.__vars = {}
+        self.__sock = None
+
+    def _kill(self):
+        """ Close socket connection and clean cache """
+        self.__sock.kill()
         self.__sock = None
 
     def action_list(self, context):
@@ -37,26 +45,29 @@ class Kind(Base):
             for key, value in self._metadata(candidate).items():
                 args.append(key)
                 args.append(self._escape(value))
+
             if args:
                 target_kind = self.__vars['targets'].get(mpc_kind)
                 cmd = 'Denite mpc:{}:{}'.format(target_kind, ':'.join(args))
                 self.vim.command(cmd)
                 continue
 
-            self.error('Candidate is missing metadata: {}'.format(candidate))
+            error(self.vim,
+                  'Candidate is missing metadata: {}'.format(candidate))
 
     def action_play(self, context):
         """ Action: Add selected to playlist and start playing it,
                     or just play them if in playlist view """
         self._get_vars(context)
         if context['targets'][0].get('mpc__kind') == 'file':
-            next = context['targets'][0].get('meta__pos')
+            play_index = context['targets'][0].get('meta__pos')
         else:
             cmds = self._get_commands('findadd', context)
             self._send(cmds, context)
-            next = len(self._playlist())
+            mpd_status = self.vim.vars.get('denite_mpc_status', {})
+            play_index = mpd_status.get('playlistlength', -1)
 
-        self._send(['play {}'.format(next)], context)
+        self._send(['play {}'.format(play_index)], context)
         self._kill()
 
     def action_add(self, context):
@@ -83,6 +94,13 @@ class Kind(Base):
             self.__vars = Source(self.vim).vars.copy()
             self.__vars.update(custom)
 
+    def _escape(self, s):
+        """ Escape certain characters with backslash """
+        if s:
+            s = re.sub(r'(\\)', r'\\\\\\\1', s)
+            s = re.sub(r'([:"\ ])', r'\\\1', s)
+        return s
+
     def _get_commands(self, command, context):
         """ Iterate through all candidates and return list of commands """
         cmds = []
@@ -100,19 +118,6 @@ class Kind(Base):
         return {key[6:]: value for key, value in candidate.items()
                 if value and key.startswith('meta__')}
 
-    def _playlist(self):
-        return self.vim.vars.get('denite_mpc_playlist', [])
-
-    def _escape(self, s):
-        """ Escape certain characters with backslash """
-        if s:
-            s = re.sub(r'(\\)', r'\\\\\\\1', s)
-            s = re.sub(r'([:"\ ])', r'\\\1', s)
-        return s
-
-    def error(self, err):
-        error(self.vim, err)
-
     def _send(self, commands, context):
         """ Send commands to socket and start communicating """
         self.__sock = Socket(
@@ -123,11 +128,3 @@ class Kind(Base):
             self.__vars['timeout'])
 
         return self.__sock.communicate(2.0)
-
-    def _kill(self):
-        """ Close socket connection and clean cache """
-        self.vim.vars['denite_mpc_playlist'] = []
-        self.vim.vars['denite_mpc_status'] = {}
-        self.vim.vars['denite_mpc_current'] = {}
-        self.__sock.kill()
-        self.__sock = None
