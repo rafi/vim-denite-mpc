@@ -4,9 +4,9 @@
 # License: MIT license
 # ============================================================================
 
+import os
 import re
 from operator import itemgetter
-from time import sleep
 
 from .base import Base
 from denite.socket import Socket
@@ -23,8 +23,8 @@ class Source(Base):
         self.syntax_name = 'deniteSource_mpc'
         self.__cache = {}
         self.vars = {
-            'host': 'localhost',
-            'port': 6600,
+            'host': os.environ.get('MPD_HOST', 'localhost'),
+            'port': os.environ.get('MPD_PORT', 6600),
             'min_cache_files': 5000,
             'timeout': 2.0,
             'default_view': 'artist',
@@ -61,7 +61,6 @@ class Source(Base):
 
         self.__current = {}
         self.__status = self.vim.vars.get('denite_mpc_status', {})
-        self.__playlist = self.vim.vars.get('denite_mpc_playlist', [])
         self.__hash = '{} {}'.format(
             self.__entity, ' '.join(context['args'])).__hash__()
 
@@ -86,11 +85,10 @@ class Source(Base):
     def gather_candidates(self, context):
         """ Initiate socket communicate """
         if self.__sock:
-            return self.__async_gather_candidates(context, 0.5)
+            return self.__async_gather_candidates(context, 0.03)
 
         if context['is_redraw']:
             self.__status = self.vim.vars['denite_mpc_status'] = {}
-            self.__playlist = self.vim.vars['denite_mpc_playlist'] = []
             self.__cache = {}
 
         # Use cache if hash exists
@@ -114,11 +112,10 @@ class Source(Base):
                 ' '.join(['"{}"'.format(a.replace('"', '\\"'))
                          for a in context['args']])).strip()
 
-        commands = [command]
-        if not self.__playlist:
-            commands.insert(0, 'playlistinfo')
+        commands = []
         if not self.__status:
-            commands.insert(0, 'status')
+            commands.append('status')
+        commands.append(command)
 
         # Open socket and send command
         self.__current_candidates = []
@@ -129,7 +126,6 @@ class Source(Base):
             context,
             self.vars['timeout'])
 
-        sleep(0.1)
         return self.__async_gather_candidates(context, self.vars['timeout'])
 
     def _sort(self, items):
@@ -142,7 +138,6 @@ class Source(Base):
     def __async_gather_candidates(self, context, timeout):
         """ Collect all candidates from socket communication """
         lines = self.__sock.communicate(timeout=timeout)
-        sleep(0.1)
         context['is_async'] = not self.__sock.eof()
         if self.__sock.eof():
             self.__sock = None
@@ -154,17 +149,10 @@ class Source(Base):
         current = {}
         separator = self.__entity if self.__entity != 'playlist' else 'file'
         status_consumed = bool(self.__status)
-        playlist_consumed = bool(self.__playlist)
         for line in lines:
             if line == 'OK' and not status_consumed:
                 self.vim.vars['denite_mpc_status'] = self.__status
                 status_consumed = True
-                continue
-            elif line == 'OK' and not playlist_consumed:
-                if current:
-                    self.__playlist.append(current)
-                self.vim.vars['denite_mpc_playlist'] = self.__playlist
-                playlist_consumed = True
                 continue
 
             parts = line.split(': ', 1)
@@ -178,15 +166,10 @@ class Source(Base):
                'id' in current and current['id'] == self.__status['songid']:
                 self.__current = current
 
-            # Parse status and playlist
-            # Parse object metadata
+            # Parse status and object metadata
             if not status_consumed:
                 self.__status[key] = val
                 continue
-            elif not playlist_consumed:
-                if key == 'file' and current:
-                    self.__playlist.append(current)
-                    current = {}
             elif key == separator and current:
                 candidates.append(self._parse_candidate(current))
                 current = {}
@@ -199,10 +182,7 @@ class Source(Base):
                 current[key] = val
 
         if current:
-            if not playlist_consumed and 'file' in current:
-                self.__playlist.append(current)
-            else:
-                candidates.append(self._parse_candidate(current))
+            candidates.append(self._parse_candidate(current))
 
         # Sort candidates if applicable, and add to the global collection
         if candidates:
@@ -231,7 +211,7 @@ class Source(Base):
 
         if self.__formatter:
             formatter = self._calc_percentage(self.__formatter)
-            word = formatter.format(**meta)
+            word = formatter.format(**{k: str(v) for k, v in meta.items()})
         else:
             word = item.get(self.__entity, '')
 
