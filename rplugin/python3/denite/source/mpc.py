@@ -21,7 +21,7 @@ class Source(Base):
         self.kind = 'mpc'
         self.syntax_name = 'deniteSource_mpc'
         self.matchers = ['matcher_fuzzy']
-        self.sorters = []
+        self.sorters = ['sorter_mpc']
         self.__cache = {}
 
         self.vars = {
