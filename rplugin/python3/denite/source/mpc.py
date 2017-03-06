@@ -55,16 +55,19 @@ class Source(Base):
         }
 
     def on_init(self, context):
-        context['__sock'] = None
         if len(context['args']) > 0:
             self.__entity = context['args'].pop(0)
         else:
             self.__entity = self.vars['default_view']
 
         self.__current = {}
-        self.__status = self.vim.vars.get('denite_mpc_status', {})
+        self.__status = context.get('__status', {})
         self.__hash = '{} {}'.format(
             self.__entity, ' '.join(context['args'])).__hash__()
+
+        context['__sock'] = None
+        context['__status'] = self.__status
+        context['__entity'] = self.__entity
 
     def on_close(self, context):
         """ Kill the socket when source's window closes """
@@ -90,7 +93,7 @@ class Source(Base):
             return self.__async_gather_candidates(context, 0.03)
 
         if context['is_redraw']:
-            self.__status = self.vim.vars['denite_mpc_status'] = {}
+            self.__status = {}
             self.__cache = {}
 
         # Use cache if hash exists
@@ -143,11 +146,10 @@ class Source(Base):
         # Parse the socket output lines according to mpd's protocol
         candidates = []
         current = {}
-        separator = self.__entity if self.__entity != 'playlist' else 'file'
+        separator = 'file' if self.__entity == 'playlist' else self.__entity
         status_consumed = bool(self.__status)
         for line in lines:
             if line == 'OK' and not status_consumed:
-                self.vim.vars['denite_mpc_status'] = self.__status
                 status_consumed = True
                 continue
 
@@ -200,7 +202,10 @@ class Source(Base):
             meta['albumartist'] = item.get('artist')
 
         if self.__entity != 'playlist' and meta['track']:
-            track, total = meta['track'].split('/', 1)
+            track = meta['track']
+            total = None
+            if meta['track'].find('/') > -1:
+                track, total = track.split('/', 1)
             meta['track'] = track.zfill(len(total or '10'))
 
         if self.__formatter:
@@ -210,14 +215,14 @@ class Source(Base):
             word = item.get(self.__entity, '')
 
         if self.__current and \
-           {self.__current.get(x) for x in ['artist', 'title', 'track']} == \
-           {meta.get(x) for x in ['artist', 'title', 'track']}:
+           {str(self.__current.get(x)) for x in ['artist', 'title', 'track']} \
+           == {str(meta.get(x)) for x in ['artist', 'title', 'track']}:
             word = '▶' + word
 
         candidate = {'meta__{}'.format(x): item.get(x)
                      for x in self.vars['tags'] if item.get(x)}
-        mpc_kind = self.__entity if self.__entity != 'playlist' else 'file'
-        candidate.update({'word': word, 'mpc__kind': mpc_kind})
+
+        candidate.update({'word': word})
         return candidate
 
     def _calc_percentage(self, format):

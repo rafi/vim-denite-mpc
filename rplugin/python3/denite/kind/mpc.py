@@ -32,11 +32,10 @@ class Kind(Base):
     def action_list(self, context):
         """ Action: Open Denite mpc source with proper filters """
         self._get_vars(context)
+        entity = context['source']['__entity']
         for candidate in context['targets']:
-            mpc_kind = candidate.get('mpc__kind')
-
             # For tracks and playlist items, use 'play' instead of 'list'.
-            if mpc_kind in ['title', 'file']:
+            if entity in ['title', 'playlist']:
                 self.action_play(context)
                 continue
 
@@ -47,7 +46,7 @@ class Kind(Base):
                 args.append(self._escape(value))
 
             if args:
-                target_kind = self.__vars['targets'].get(mpc_kind)
+                target_kind = self.__vars['targets'].get(entity)
                 cmd = 'Denite mpc:{}:{}'.format(target_kind, ':'.join(args))
                 self.vim.command(cmd)
                 continue
@@ -59,12 +58,12 @@ class Kind(Base):
         """ Action: Add selected to playlist and start playing it,
                     or just play them if in playlist view """
         self._get_vars(context)
-        if context['targets'][0].get('mpc__kind') == 'file':
+        if context['source']['__entity'] == 'playlist':
             play_index = context['targets'][0].get('meta__pos')
         else:
             cmds = self._get_commands('findadd', context)
             self._send(cmds, context)
-            mpd_status = self.vim.vars.get('denite_mpc_status', {})
+            mpd_status = context['source'].get('__status', {})
             play_index = mpd_status.get('playlistlength', -1)
 
         self._send(['play {}'.format(play_index)], context)
